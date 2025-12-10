@@ -31,10 +31,10 @@ class SelectHandler extends Handler<SelectTool> {
   @override
   Map<String, RendererState> get rendererStates =>
       _selectionManager.isTransforming && !_duplicate
-      ? Map.fromEntries(
-          _selected.map((e) => MapEntry(e.id, RendererState.hidden)),
-        )
-      : {};
+          ? Map.fromEntries(
+              _selected.map((e) => MapEntry(e.id, RendererState.hidden)),
+            )
+          : {};
 
   @override
   Future<void> resetInput(DocumentBloc bloc) async {
@@ -154,6 +154,7 @@ class SelectHandler extends Handler<SelectTool> {
     Area? currentArea,
   ]) {
     final foregrounds = <Renderer>[];
+    // Always show transformed objects (including during rotation)
     foregrounds.addAll(_getTransformed() ?? []);
     final selectionRect = getSelectionRect();
     final scheme = currentIndexCubit.getTheme(false).colorScheme;

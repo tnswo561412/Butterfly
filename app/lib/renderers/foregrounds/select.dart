@@ -203,7 +203,10 @@ class RectSelectionForegroundManager {
         scaleX += delta.dx / _selection.size.width;
         scaleY += delta.dy / _selection.size.height;
       case SelectionTransformCorner.center when enableRotation:
+        // Calculate rotation: 0-360 degrees, increasing clockwise
         rotation = (position.getRotation(_selection.center) + 90) / pi * 180;
+        rotation = rotation % 360;
+        if (rotation < 0) rotation += 360;
       default:
         moved = delta;
     }
@@ -243,6 +246,7 @@ class RectSelectionForegroundManager {
         _corner,
         enableRotation,
         isTransforming,
+        getTransform()?.rotation ?? 0,
       );
 }
 
@@ -250,6 +254,7 @@ class RectSelectionForegroundRenderer extends Renderer<Rect> {
   final SelectionScaleMode? transformMode;
   final SelectionTransformCorner? transformCorner;
   final bool enableRotation, isTransforming;
+  final double currentRotation;
 
   RectSelectionForegroundRenderer(
     super.element, [
@@ -257,6 +262,7 @@ class RectSelectionForegroundRenderer extends Renderer<Rect> {
     this.transformCorner,
     this.enableRotation = true,
     this.isTransforming = false,
+    this.currentRotation = 0,
   ]);
 
   @override
@@ -270,6 +276,12 @@ class RectSelectionForegroundRenderer extends Renderer<Rect> {
     ColorScheme? colorScheme,
     bool foreground = false,
   ]) {
+    // Show rotation angle indicator when rotating
+    if (isTransforming &&
+        transformCorner == SelectionTransformCorner.center) {
+      _drawRotationIndicator(canvas, transform, colorScheme);
+      return;
+    }
     if (element.isEmpty || isTransforming) return;
     final paint = Paint()
       ..color = colorScheme?.primaryContainer ?? Colors.blueAccent
@@ -298,7 +310,8 @@ class RectSelectionForegroundRenderer extends Renderer<Rect> {
       ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
     final realSize = visibleSize / transform.size;
-    if (element.width < 2 * realSize || element.height < 2 * realSize) return;
+    // Only skip if both width and height are too small (allows thin lines to show handles)
+    if (element.width < 2 * realSize && element.height < 2 * realSize) return;
     final showCenter =
         element.width > 3 * realSize && element.height > 3 * realSize;
     SelectionTransformCorner.values
@@ -350,6 +363,54 @@ class RectSelectionForegroundRenderer extends Renderer<Rect> {
       canvas,
       element.center - Offset(textPainter.width / 2, textPainter.height / 2),
     );
+  }
+
+  void _drawRotationIndicator(
+    Canvas canvas,
+    CameraTransform transform,
+    ColorScheme? colorScheme,
+  ) {
+    final center = element.center;
+    final color = colorScheme?.primary ?? Colors.blue;
+    final realSize = visibleSize / transform.size;
+
+    // Draw rotation angle text (no selection box during rotation)
+    final angleText = '${currentRotation.toStringAsFixed(1)}°';
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: angleText,
+        style: TextStyle(
+          fontSize: realSize * 1.5,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+    textPainter.layout();
+
+    // Position above the selection center
+    final textOffset = Offset(
+      center.dx - textPainter.width / 2,
+      element.top - textPainter.height - realSize,
+    );
+
+    // Draw background for better visibility
+    final bgPaint = Paint()
+      ..color = (colorScheme?.surface ?? Colors.white).withValues(alpha: 0.8)
+      ..style = PaintingStyle.fill;
+    final bgRect = Rect.fromLTWH(
+      textOffset.dx - realSize / 2,
+      textOffset.dy - realSize / 4,
+      textPainter.width + realSize,
+      textPainter.height + realSize / 2,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bgRect, Radius.circular(realSize / 2)),
+      bgPaint,
+    );
+
+    textPainter.paint(canvas, textOffset);
   }
 }
 
